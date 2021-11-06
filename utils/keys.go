@@ -1,3 +1,10 @@
+/*
+Copyright (C) BABEC. All rights reserved.
+Copyright (C) THL A29 Limited, a Tencent company. All rights reserved.
+
+SPDX-License-Identifier: Apache-2.0
+*/
+
 package utils
 
 //nolint
@@ -60,9 +67,9 @@ const (
 	KeyPrivateReq   = "private_req"
 
 	// PubkeyManage keys
-	KeyPubkey       = "pubkey"
-	KeyPubkeyRole 	= "role"
-	KeyPubkeyOrgId 	= "org_id"
+	KeyPubkey      = "pubkey"
+	KeyPubkeyRole  = "role"
+	KeyPubkeyOrgId = "org_id"
 )
 
 //nolint
