@@ -29,8 +29,10 @@ const (
 	DefaultGetTxTimeout = 10
 	// DefaultSendTxTimeout 发送交易超时时间
 	DefaultSendTxTimeout = 10
-	// DefaultRpcClientMaxReceiveMessageSize 默认grpc客户端接受最大值 4M
+	// DefaultRpcClientMaxReceiveMessageSize 默认grpc客户端接收message最大值 4M
 	DefaultRpcClientMaxReceiveMessageSize = 4
+	// DefaultRpcClientMaxSendMessageSize 默认grpc客户端发送message最大值 4M
+	DefaultRpcClientMaxSendMessageSize = 4
 )
 
 var (
@@ -121,9 +123,8 @@ func WithSecretKey(key string) ArchiveOption {
 
 // RPCClientConfig RPC Client 链接配置
 type RPCClientConfig struct {
-
-	//pc客户端最大接受大小 (MB)
-	rpcClientMaxReceiveMessageSize int
+	// grpc客户端接收和发送消息时，允许单条message大小的最大值(MB)
+	rpcClientMaxReceiveMessageSize, rpcClientMaxSendMessageSize int
 }
 
 type RPCClientOption func(config *RPCClientConfig)
@@ -132,6 +133,13 @@ type RPCClientOption func(config *RPCClientConfig)
 func WithRPCClientMaxReceiveMessageSize(size int) RPCClientOption {
 	return func(config *RPCClientConfig) {
 		config.rpcClientMaxReceiveMessageSize = size
+	}
+}
+
+// WithRPCClientMaxSendMessageSize 设置RPC Client的Max Send Message Size
+func WithRPCClientMaxSendMessageSize(size int) RPCClientOption {
+	return func(config *RPCClientConfig) {
+		config.rpcClientMaxSendMessageSize = size
 	}
 }
 
@@ -230,6 +238,9 @@ type ChainClientConfig struct {
 	// retry config
 	retryLimit    int // if <=0 then use DefaultRetryLimit
 	retryInterval int // if <=0 then use DefaultRetryInterval
+
+	// alias
+	alias string
 }
 
 type CryptoConfig struct {
@@ -351,6 +362,12 @@ func WithRetryInterval(interval int) ChainClientOption {
 	}
 }
 
+func WithChainClientAlias(alias string) ChainClientOption {
+	return func(config *ChainClientConfig) {
+		config.alias = alias
+	}
+}
+
 // WithChainClientLogger 设置Logger对象，便于日志打印
 func WithChainClientLogger(logger utils.Logger) ChainClientOption {
 	return func(config *ChainClientConfig) {
@@ -430,6 +447,10 @@ func setChainConfig(config *ChainClientConfig) {
 	if utils.Config.ChainClientConfig.OrgId != "" && config.orgId == "" {
 		config.orgId = utils.Config.ChainClientConfig.OrgId
 	}
+
+	if utils.Config.ChainClientConfig.Alias != "" && config.alias == "" {
+		config.alias = utils.Config.ChainClientConfig.Alias
+	}
 }
 
 // 如果参数没有设置，便使用配置文件的配置
@@ -505,6 +526,7 @@ func setRPCClientConfig(config *ChainClientConfig) {
 	if utils.Config.ChainClientConfig.RPCClientConfig != nil && config.rpcClientConfig == nil {
 		rpcClient := NewRPCClientConfig(
 			WithRPCClientMaxReceiveMessageSize(utils.Config.ChainClientConfig.RPCClientConfig.MaxRecvMsgSize),
+			WithRPCClientMaxSendMessageSize(utils.Config.ChainClientConfig.RPCClientConfig.MaxSendMsgSize),
 		)
 		config.rpcClientConfig = rpcClient
 	}
@@ -704,12 +726,15 @@ func checkRPCClientConfig(config *ChainClientConfig) error {
 	if config.rpcClientConfig == nil {
 		rpcClient := NewRPCClientConfig(
 			WithRPCClientMaxReceiveMessageSize(DefaultRpcClientMaxReceiveMessageSize),
+			WithRPCClientMaxSendMessageSize(DefaultRpcClientMaxSendMessageSize),
 		)
 		config.rpcClientConfig = rpcClient
 	} else {
-		if config.rpcClientConfig.rpcClientMaxReceiveMessageSize <= 0 ||
-			config.rpcClientConfig.rpcClientMaxReceiveMessageSize > 100 {
+		if config.rpcClientConfig.rpcClientMaxReceiveMessageSize <= 0 {
 			config.rpcClientConfig.rpcClientMaxReceiveMessageSize = DefaultRpcClientMaxReceiveMessageSize
+		}
+		if config.rpcClientConfig.rpcClientMaxSendMessageSize <= 0 {
+			config.rpcClientConfig.rpcClientMaxSendMessageSize = DefaultRpcClientMaxSendMessageSize
 		}
 	}
 	return nil

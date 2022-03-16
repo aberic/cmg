@@ -28,8 +28,8 @@ const (
 func (cc *ChainClient) GetChainConfig() (*config.ChainConfig, error) {
 	cc.logger.Debug("[SDK] begin to get chain config")
 
-	payload := cc.createPayload("", common.TxType_QUERY_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_GET_CHAIN_CONFIG.String(), nil, defaultSeq)
+	payload := cc.CreatePayload("", common.TxType_QUERY_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_GET_CHAIN_CONFIG.String(), nil, defaultSeq, nil)
 
 	resp, err := cc.proposalRequest(payload, nil)
 	if err != nil {
@@ -57,8 +57,8 @@ func (cc *ChainClient) GetChainConfigByBlockHeight(blockHeight uint64) (*config.
 		Value: []byte(strconv.FormatUint(blockHeight, 10)),
 	}}
 
-	payload := cc.createPayload("", common.TxType_QUERY_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_GET_CHAIN_CONFIG_AT.String(), pairs, defaultSeq)
+	payload := cc.CreatePayload("", common.TxType_QUERY_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_GET_CHAIN_CONFIG_AT.String(), pairs, defaultSeq, nil)
 
 	resp, err := cc.proposalRequest(payload, nil)
 	if err != nil {
@@ -129,14 +129,14 @@ func (cc *ChainClient) CreateChainConfigCoreUpdatePayload(txSchedulerTimeout,
 		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
 	}
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_CORE_UPDATE.String(), pairs, seq+1)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_CORE_UPDATE.String(), pairs, seq+1, nil)
 
 	return payload, nil
 }
 
 func (cc *ChainClient) CreateChainConfigBlockUpdatePayload(txTimestampVerify bool, txTimeout, blockTxCapacity,
-	blockSize, blockInterval uint32) (*common.Payload, error) {
+	blockSize, blockInterval, txParamterSize uint32) (*common.Payload, error) {
 	cc.logger.Debug("[SDK] begin to create [BlockUpdate] to be signed payload")
 
 	pairs := []*common.KeyValuePair{
@@ -186,14 +186,20 @@ func (cc *ChainClient) CreateChainConfigBlockUpdatePayload(txTimestampVerify boo
 			Value: []byte(strconv.FormatUint(uint64(blockInterval), 10)),
 		})
 	}
+	if txParamterSize > 0 {
+		pairs = append(pairs, &common.KeyValuePair{
+			Key:   utils.KeyTxParamterSize,
+			Value: []byte(strconv.FormatUint(uint64(txParamterSize), 10)),
+		})
+	}
 
 	seq, err := cc.GetChainConfigSequence()
 	if err != nil {
 		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
 	}
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_BLOCK_UPDATE.String(), pairs, seq+1)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_BLOCK_UPDATE.String(), pairs, seq+1, nil)
 
 	return payload, nil
 }
@@ -218,8 +224,8 @@ func (cc *ChainClient) CreateChainConfigTrustRootAddPayload(trustRootOrgId strin
 		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
 	}
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_TRUST_ROOT_ADD.String(), pairs, seq+1)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_TRUST_ROOT_ADD.String(), pairs, seq+1, nil)
 
 	return payload, nil
 }
@@ -244,8 +250,8 @@ func (cc *ChainClient) CreateChainConfigTrustRootUpdatePayload(trustRootOrgId st
 		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
 	}
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_TRUST_ROOT_UPDATE.String(), pairs, seq+1)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_TRUST_ROOT_UPDATE.String(), pairs, seq+1, nil)
 
 	return payload, nil
 }
@@ -265,8 +271,8 @@ func (cc *ChainClient) CreateChainConfigTrustRootDeletePayload(trustRootOrgId st
 		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
 	}
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_TRUST_ROOT_DELETE.String(), pairs, seq+1)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_TRUST_ROOT_DELETE.String(), pairs, seq+1, nil)
 
 	return payload, nil
 }
@@ -299,10 +305,10 @@ func (cc *ChainClient) CreateChainConfigTrustMemberAddPayload(trustMemberOrgId, 
 		},
 	}
 
-	//payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-	//	syscontract.ChainConfigFunction_TRUST_MEMBER_ADD.String(), pairs, seq+1)
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_TRUST_ROOT_ADD.String(), pairs, seq+1)
+	//payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+	//	syscontract.ChainConfigFunction_TRUST_MEMBER_ADD.String(), pairs, seq+1, nil)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_TRUST_ROOT_ADD.String(), pairs, seq+1, nil)
 
 	return payload, nil
 }
@@ -321,10 +327,10 @@ func (cc *ChainClient) CreateChainConfigTrustMemberDeletePayload(trustMemberInfo
 			Value: []byte(trustMemberInfo),
 		},
 	}
-	//payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-	//	syscontract.ChainConfigFunction_TRUST_MEMBER_DELETE.String(), pairs, seq+1)
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_TRUST_ROOT_DELETE.String(), pairs, seq+1)
+	//payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+	//	syscontract.ChainConfigFunction_TRUST_MEMBER_DELETE.String(), pairs, seq+1, nil)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_TRUST_ROOT_DELETE.String(), pairs, seq+1, nil)
 
 	return payload, nil
 }
@@ -350,8 +356,8 @@ func (cc *ChainClient) CreateChainConfigPermissionAddPayload(permissionResourceN
 		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
 	}
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_PERMISSION_ADD.String(), pairs, seq+1)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_PERMISSION_ADD.String(), pairs, seq+1, nil)
 
 	return payload, nil
 }
@@ -377,8 +383,8 @@ func (cc *ChainClient) CreateChainConfigPermissionUpdatePayload(permissionResour
 		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
 	}
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_PERMISSION_UPDATE.String(), pairs, seq+1)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_PERMISSION_UPDATE.String(), pairs, seq+1, nil)
 
 	return payload, nil
 }
@@ -397,8 +403,8 @@ func (cc *ChainClient) CreateChainConfigPermissionDeletePayload(resourceName str
 		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
 	}
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_PERMISSION_DELETE.String(), pairs, seq+1)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_PERMISSION_DELETE.String(), pairs, seq+1, nil)
 
 	return payload, nil
 }
@@ -423,8 +429,8 @@ func (cc *ChainClient) CreateChainConfigConsensusNodeIdAddPayload(nodeOrgId stri
 		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
 	}
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_NODE_ID_ADD.String(), pairs, seq+1)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_NODE_ID_ADD.String(), pairs, seq+1, nil)
 
 	return payload, nil
 }
@@ -453,8 +459,8 @@ func (cc *ChainClient) CreateChainConfigConsensusNodeIdUpdatePayload(nodeOrgId, 
 		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
 	}
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_NODE_ID_UPDATE.String(), pairs, seq+1)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_NODE_ID_UPDATE.String(), pairs, seq+1, nil)
 
 	return payload, nil
 }
@@ -479,8 +485,8 @@ func (cc *ChainClient) CreateChainConfigConsensusNodeIdDeletePayload(nodeOrgId,
 		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
 	}
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_NODE_ID_DELETE.String(), pairs, seq+1)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_NODE_ID_DELETE.String(), pairs, seq+1, nil)
 
 	return payload, nil
 }
@@ -505,8 +511,8 @@ func (cc *ChainClient) CreateChainConfigConsensusNodeOrgAddPayload(nodeOrgId str
 		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
 	}
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_NODE_ORG_ADD.String(), pairs, seq+1)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_NODE_ORG_ADD.String(), pairs, seq+1, nil)
 
 	return payload, nil
 }
@@ -531,8 +537,8 @@ func (cc *ChainClient) CreateChainConfigConsensusNodeOrgUpdatePayload(nodeOrgId 
 		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
 	}
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_NODE_ORG_UPDATE.String(), pairs, seq+1)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_NODE_ORG_UPDATE.String(), pairs, seq+1, nil)
 
 	return payload, nil
 }
@@ -552,8 +558,8 @@ func (cc *ChainClient) CreateChainConfigConsensusNodeOrgDeletePayload(nodeOrgId 
 		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
 	}
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_NODE_ORG_DELETE.String(), pairs, seq+1)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_NODE_ORG_DELETE.String(), pairs, seq+1, nil)
 
 	return payload, nil
 }
@@ -566,8 +572,8 @@ func (cc *ChainClient) CreateChainConfigConsensusExtAddPayload(kvs []*common.Key
 		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
 	}
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_CONSENSUS_EXT_ADD.String(), kvs, seq+1)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_CONSENSUS_EXT_ADD.String(), kvs, seq+1, nil)
 
 	return payload, nil
 }
@@ -580,8 +586,8 @@ func (cc *ChainClient) CreateChainConfigConsensusExtUpdatePayload(kvs []*common.
 		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
 	}
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_CONSENSUS_EXT_UPDATE.String(), kvs, seq+1)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_CONSENSUS_EXT_UPDATE.String(), kvs, seq+1, nil)
 
 	return payload, nil
 }
@@ -601,8 +607,47 @@ func (cc *ChainClient) CreateChainConfigConsensusExtDeletePayload(keys []string)
 		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
 	}
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
-		syscontract.ChainConfigFunction_CONSENSUS_EXT_DELETE.String(), pairs, seq+1)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_CONSENSUS_EXT_DELETE.String(), pairs, seq+1, nil)
+
+	return payload, nil
+}
+
+func (cc *ChainClient) CreateChainConfigAlterAddrTypePayload(addrType string) (*common.Payload, error) {
+	cc.logger.Debug("[SDK] begin to create [AlterAddrType] to be signed payload")
+
+	if addrType != "0" && addrType != "1" {
+		return nil, fmt.Errorf("unknown addr type [%s], only support: 0-ChainMaker; 1-ZXL", addrType)
+	}
+
+	pairs := []*common.KeyValuePair{
+		{
+			Key:   utils.KeyChainConfigAddrType,
+			Value: []byte(addrType),
+		},
+	}
+
+	seq, err := cc.GetChainConfigSequence()
+	if err != nil {
+		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
+	}
+
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_ALTER_ADDR_TYPE.String(), pairs, seq+1, nil)
+
+	return payload, nil
+}
+
+func (cc *ChainClient) CreateChainConfigEnableOrDisableGasPayload() (*common.Payload, error) {
+	cc.logger.Debug("[SDK] begin to create [EnableOrDisable] to be signed payload")
+
+	seq, err := cc.GetChainConfigSequence()
+	if err != nil {
+		return nil, fmt.Errorf(getCCSeqErrStringFormat, err)
+	}
+
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CHAIN_CONFIG.String(),
+		syscontract.ChainConfigFunction_ENABLE_OR_DISABLE_GAS.String(), nil, seq+1, nil)
 
 	return payload, nil
 }

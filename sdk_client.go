@@ -9,6 +9,7 @@ package chainmaker_sdk_go
 
 import (
 	"encoding/hex"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"strings"
@@ -35,13 +36,16 @@ var _ SDKInterface = (*ChainClient)(nil)
 
 type ChainClient struct {
 	// common config
-	logger       utils.Logger
-	pool         ConnectionPool
-	chainId      string
-	orgId        string
+	logger  utils.Logger
+	pool    ConnectionPool
+	chainId string
+	orgId   string
+
 	userCrtBytes []byte
 	userCrt      *bcx509.Certificate
 	privateKey   crypto.PrivateKey
+	publicKey    crypto.PublicKey
+	pkBytes      []byte
 
 	// cert hash config
 	enabledCrtHash bool
@@ -56,13 +60,15 @@ type ChainClient struct {
 	// pkcs11 config
 	pkcs11Config *Pkcs11Config
 
-	publicKey crypto.PublicKey
-	pkBytes   []byte
-	hashType  string
-	authType  AuthType
+	hashType string
+	authType AuthType
 	// retry config
 	retryLimit    int // if <=0 then use DefaultRetryLimit
 	retryInterval int // if <=0 then use DefaultRetryInterval
+
+	// alias support
+	enabledAlias bool
+	alias        string
 }
 
 func NewNodeConfig(opts ...NodeOption) *NodeConfig {
@@ -138,11 +144,12 @@ func NewChainClient(opts ...ChainClientOption) (*ChainClient, error) {
 		pkBytes = []byte(pkPem)
 	}
 
-	return &ChainClient{
+	cc := &ChainClient{
 		pool:            pool,
 		logger:          config.logger,
 		chainId:         config.chainId,
 		orgId:           config.orgId,
+		alias:           config.alias,
 		userCrtBytes:    config.userSignCrtBytes,
 		userCrt:         config.userCrt,
 		privateKey:      config.privateKey,
@@ -157,7 +164,16 @@ func NewChainClient(opts ...ChainClientOption) (*ChainClient, error) {
 
 		retryLimit:    config.retryLimit,
 		retryInterval: config.retryInterval,
-	}, nil
+	}
+
+	// 若设置了别名，便启用
+	if config.authType == PermissionedWithCert && len(cc.alias) > 0 {
+		if err := cc.EnableAlias(); err != nil {
+			return nil, err
+		}
+	}
+
+	return cc, nil
 }
 
 func (cc *ChainClient) Stop() error {
@@ -172,7 +188,7 @@ func (cc *ChainClient) proposalRequest(payload *common.Payload,
 func (cc *ChainClient) proposalRequestWithTimeout(payload *common.Payload, endorsers []*common.EndorsementEntry,
 	timeout int64) (*common.TxResponse, error) {
 
-	req, err := cc.generateTxRequest(payload, endorsers)
+	req, err := cc.GenerateTxRequest(payload, endorsers)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +196,7 @@ func (cc *ChainClient) proposalRequestWithTimeout(payload *common.Payload, endor
 	return cc.sendTxRequest(req, timeout)
 }
 
-func (cc *ChainClient) generateTxRequest(payload *common.Payload,
+func (cc *ChainClient) GenerateTxRequest(payload *common.Payload,
 	endorsers []*common.EndorsementEntry) (*common.TxRequest, error) {
 	var (
 		signer    *accesscontrol.Member
@@ -191,7 +207,13 @@ func (cc *ChainClient) generateTxRequest(payload *common.Payload,
 	// 构造Sender
 	if cc.authType == PermissionedWithCert {
 
-		if cc.enabledCrtHash && len(cc.userCrtHash) > 0 {
+		if cc.enabledAlias && len(cc.alias) > 0 {
+			signer = &accesscontrol.Member{
+				OrgId:      cc.orgId,
+				MemberInfo: []byte(cc.alias),
+				MemberType: accesscontrol.MemberType_ALIAS,
+			}
+		} else if cc.enabledCrtHash && len(cc.userCrtHash) > 0 {
 			signer = &accesscontrol.Member{
 				OrgId:      cc.orgId,
 				MemberInfo: cc.userCrtHash,
@@ -308,6 +330,11 @@ func (cc *ChainClient) EnableCertHash() error {
 		err error
 	)
 
+	// 优先使用别名，如果开启了别名，直接忽略压缩证书
+	if cc.enabledAlias {
+		return nil
+	}
+
 	if cc.GetAuthType() != PermissionedWithCert {
 		return errors.New("cert hash is not supported")
 	}
@@ -388,6 +415,42 @@ func (cc *ChainClient) GetHashType() string {
 
 func (cc *ChainClient) GetAuthType() AuthType {
 	return cc.authType
+}
+
+func (cc *ChainClient) GetPublicKey() crypto.PublicKey {
+	return cc.publicKey
+}
+
+func (cc *ChainClient) GetPrivateKey() crypto.PrivateKey {
+	return cc.privateKey
+}
+
+func (cc *ChainClient) GetCertPEM() []byte {
+	return cc.userCrtBytes
+}
+
+func (cc *ChainClient) GetLocalCertAlias() string {
+	return cc.alias
+}
+
+// ChangeSigner change ChainClient siger. signerCrt passes nil in Public or PermissionedWithKey mode
+func (cc *ChainClient) ChangeSigner(signerPrivKey crypto.PrivateKey, signerCrt *bcx509.Certificate) error {
+	signerPubKey := signerPrivKey.PublicKey()
+	pkPem, err := signerPubKey.String()
+	if err != nil {
+		return err
+	}
+
+	cc.pkBytes = []byte(pkPem)
+	cc.publicKey = signerPubKey
+	cc.privateKey = signerPrivKey
+
+	if signerCrt != nil {
+		crtPem := pem.EncodeToMemory(&pem.Block{Bytes: signerCrt.Raw, Type: "CERTIFICATE"})
+		cc.userCrtBytes = crtPem
+		cc.userCrt = signerCrt
+	}
+	return nil
 }
 
 // 检查证书是否成功上链
@@ -482,4 +545,105 @@ func CreateChainClient(pool ConnectionPool, userCrtBytes, privKey, userCrtHash [
 	}
 
 	return chain, nil
+}
+
+func (cc *ChainClient) EnableAlias() error {
+	var (
+		err error
+	)
+
+	// 已经启用别名，直接返回
+	if cc.enabledAlias {
+		return nil
+	}
+
+	// 查询别名是否上链
+	ok, err := cc.getCheckAlias()
+	if err != nil {
+		errMsg := fmt.Sprintf("enable alias, get and check alias failed, %s", err.Error())
+		cc.logger.Debugf(sdkErrStringFormat, errMsg)
+		//return errors.New(errMsg)
+	}
+
+	// 别名已上链
+	if ok {
+		cc.enabledAlias = true
+		return nil
+	}
+
+	// 添加别名
+	resp, err := cc.AddAlias()
+	if err != nil {
+		errMsg := fmt.Sprintf("enable alias AddAlias failed, %s", err.Error())
+		cc.logger.Errorf(sdkErrStringFormat, errMsg)
+		return errors.New(errMsg)
+	}
+
+	if err = utils.CheckProposalRequestResp(resp, true); err != nil {
+		errMsg := fmt.Sprintf("enable alias AddAlias got invalid resp, %s", err.Error())
+		cc.logger.Errorf(sdkErrStringFormat, errMsg)
+		return errors.New(errMsg)
+	}
+
+	// 循环检查别名是否成功上链
+	err = cc.checkAliasOnChain()
+	if err != nil {
+		errMsg := fmt.Sprintf("check alias on chain failed, %s", err.Error())
+		cc.logger.Errorf(sdkErrStringFormat, errMsg)
+		return errors.New(errMsg)
+	}
+
+	cc.enabledAlias = true
+
+	return nil
+}
+
+func (cc *ChainClient) getCheckAlias() (bool, error) {
+	aliasInfos, err := cc.QueryCertsAlias([]string{cc.alias})
+	if err != nil {
+		errMsg := fmt.Sprintf("QueryCertsAlias failed, %s", err.Error())
+		cc.logger.Errorf(sdkErrStringFormat, errMsg)
+		return false, errors.New(errMsg)
+	}
+
+	if len(aliasInfos.AliasInfos) != 1 {
+		return false, errors.New("alias not found")
+	}
+
+	if aliasInfos.AliasInfos[0].Alias != cc.alias {
+		return false, errors.New("alias not equal")
+	}
+
+	if aliasInfos.AliasInfos[0].NowCert.Cert == nil {
+		return false, errors.New("alias has been deleted")
+	}
+
+	return true, nil
+}
+
+func (cc *ChainClient) checkAliasOnChain() error {
+	err := retry.Retry(func(uint) error {
+		ok, err := cc.getCheckAlias()
+		if err != nil {
+			errMsg := fmt.Sprintf("check alias on chain, get and check alias failed, %s", err.Error())
+			cc.logger.Errorf(sdkErrStringFormat, errMsg)
+			return errors.New(errMsg)
+		}
+
+		if !ok {
+			errMsg := "alias havenot on chain yet, and try again"
+			cc.logger.Debugf(sdkErrStringFormat, errMsg)
+			return errors.New(errMsg)
+		}
+
+		return nil
+	}, strategy.Limit(10), strategy.Wait(time.Second))
+
+	if err != nil {
+		errMsg := fmt.Sprintf("check upload alias on chain failed, try again later, %s", err.Error())
+		cc.logger.Errorf(sdkErrStringFormat, errMsg)
+		return errors.New(errMsg)
+	}
+
+	return nil
 }

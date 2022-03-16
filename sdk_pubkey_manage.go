@@ -15,8 +15,8 @@ import (
 
 func (cc *ChainClient) createPubkeyManagePayload(method string, kvs []*common.KeyValuePair) *common.Payload {
 	cc.logger.Debugf("[SDK] create PubkeyManagePayload, method: %s", method)
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_PUBKEY_MANAGE.String(),
-		method, kvs, defaultSeq)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_PUBKEY_MANAGE.String(),
+		method, kvs, defaultSeq, nil)
 	return payload
 }
 
@@ -63,8 +63,8 @@ func (cc *ChainClient) CreatePubkeyQueryPayload(pubkey string) (*common.Payload,
 		},
 	}
 
-	return cc.createPayload("", common.TxType_QUERY_CONTRACT, syscontract.SystemContract_PUBKEY_MANAGE.String(),
-		syscontract.PubkeyManageFunction_PUBKEY_QUERY.String(), pairs, defaultSeq), nil
+	return cc.CreatePayload("", common.TxType_QUERY_CONTRACT, syscontract.SystemContract_PUBKEY_MANAGE.String(),
+		syscontract.PubkeyManageFunction_PUBKEY_QUERY.String(), pairs, defaultSeq, nil), nil
 }
 
 func (cc *ChainClient) SendPubkeyManageRequest(payload *common.Payload, endorsers []*common.EndorsementEntry,

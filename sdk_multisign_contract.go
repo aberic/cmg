@@ -30,10 +30,13 @@ func (cc *ChainClient) MultiSignContractReq(payload *common.Payload) (*common.Tx
 }
 
 func (cc *ChainClient) MultiSignContractVote(multiSignReqPayload *common.Payload,
-	endorser *common.EndorsementEntry) (*common.TxResponse, error) {
-
+	endorser *common.EndorsementEntry, isAgree bool) (*common.TxResponse, error) {
+	agree := syscontract.VoteStatus_AGREE
+	if !isAgree {
+		agree = syscontract.VoteStatus_REJECT
+	}
 	msvi := &syscontract.MultiSignVoteInfo{
-		Vote:        syscontract.VoteStatus_AGREE,
+		Vote:        agree,
 		Endorsement: endorser,
 	}
 	msviByte, _ := msvi.Marshal()
@@ -85,21 +88,21 @@ func (cc *ChainClient) MultiSignContractQuery(txId string) (*common.TxResponse, 
 
 func (cc *ChainClient) CreateMultiSignReqPayload(pairs []*common.KeyValuePair) *common.Payload {
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_MULTI_SIGN.String(),
-		syscontract.MultiSignFunction_REQ.String(), pairs, defaultSeq)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_MULTI_SIGN.String(),
+		syscontract.MultiSignFunction_REQ.String(), pairs, defaultSeq, nil)
 	return payload
 }
 
 func (cc *ChainClient) createMultiSignVotePayload(pairs []*common.KeyValuePair) *common.Payload {
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_MULTI_SIGN.String(),
-		syscontract.MultiSignFunction_VOTE.String(), pairs, defaultSeq)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_MULTI_SIGN.String(),
+		syscontract.MultiSignFunction_VOTE.String(), pairs, defaultSeq, nil)
 
 	return payload
 }
 
 func (cc *ChainClient) createMultiSignQueryPayload(pairs []*common.KeyValuePair) *common.Payload {
-	payload := cc.createPayload("", common.TxType_QUERY_CONTRACT, syscontract.SystemContract_MULTI_SIGN.String(),
-		syscontract.MultiSignFunction_QUERY.String(), pairs, defaultSeq)
+	payload := cc.CreatePayload("", common.TxType_QUERY_CONTRACT, syscontract.SystemContract_MULTI_SIGN.String(),
+		syscontract.MultiSignFunction_QUERY.String(), pairs, defaultSeq, nil)
 
 	return payload
 }

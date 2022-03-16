@@ -31,22 +31,26 @@ const (
 	nodePeerId2 = "QmQVkTSF6aWzRSddT3rro6Ve33jhKpsHFaQoVxHKMWzhuN"
 
 	sdkConfigOrg1Client1Path = "../sdk_configs/sdk_config_org1_client1.yml"
+	sdkConfigPKUser1Path     = "../sdk_configs/sdk_config_pk_user1.yml"
 )
 
 func main() {
-	testChainConfig(sdkConfigOrg1Client1Path)
+	client, err := examples.CreateChainClientWithSDKConf(sdkConfigOrg1Client1Path)
+	//client, err := examples.CreateChainClientWithSDKConf(sdkConfigPKUser1Path)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	//testChainConfig(client)
+	testChainConfigGasEnable(client)
+	testChainConfigAlterAddrType(client)
 }
 
-func testChainConfig(sdkPath string) {
+func testChainConfig(client *sdk.ChainClient) {
 	var (
 		chainConfig *config.ChainConfig
 		ok          bool
 	)
-
-	client, err := examples.CreateChainClientWithSDKConf(sdkPath)
-	if err != nil {
-		log.Fatalln(err)
-	}
 
 	fmt.Println("====================== 根据区块高度获取链配置 ======================")
 	testGetChainConfigByBlockHeight(client, 1)
@@ -77,7 +81,8 @@ func testChainConfig(sdkPath string) {
 	blockTxCapacity := uint32(rand.Intn(1000)) + 1
 	blockSize := uint32(rand.Intn(10)) + 1
 	blockInterval := uint32(rand.Intn(10000)) + 10
-	testChainConfigBlockUpdate(client, txTimestampVerify, txTimeout, blockTxCapacity, blockSize, blockInterval, examples.UserNameOrg1Admin1, examples.UserNameOrg2Admin1, examples.UserNameOrg3Admin1, examples.UserNameOrg4Admin1)
+	txParameterSize := uint32(rand.Intn(100))
+	testChainConfigBlockUpdate(client, txTimestampVerify, txTimeout, blockTxCapacity, blockSize, blockInterval, txParameterSize, examples.UserNameOrg1Admin1, examples.UserNameOrg2Admin1, examples.UserNameOrg3Admin1, examples.UserNameOrg4Admin1)
 	time.Sleep(2 * time.Second)
 	chainConfig = testGetChainConfig(client)
 	fmt.Printf("tx_timestamp_verify: %s, txTimeout: %d, blockTxCapacity: %d, blockSize: %d, blockInterval: %d\n", strconv.FormatBool(txTimestampVerify), txTimeout, blockTxCapacity, blockSize, blockInterval)
@@ -367,7 +372,7 @@ func testGetChainConfig(client *sdk.ChainClient) *config.ChainConfig {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	fmt.Printf("GetChainConfig resp: %+v\n", resp)
+	//fmt.Printf("GetChainConfig resp: %+v\n", resp)
 	return resp
 }
 
@@ -400,11 +405,11 @@ func testChainConfigCoreUpdate(client *sdk.ChainClient, txSchedulerTimeout, txSc
 }
 
 func testChainConfigBlockUpdate(client *sdk.ChainClient, txTimestampVerify bool,
-	txTimeout, blockTxCapacity, blockSize, blockInterval uint32, usernames ...string) {
+	txTimeout, blockTxCapacity, blockSize, blockInterval, txParameterSize uint32, usernames ...string) {
 
 	// 配置块更新payload生成
 	payload, err := client.CreateChainConfigBlockUpdatePayload(
-		txTimestampVerify, txTimeout, blockTxCapacity, blockSize, blockInterval)
+		txTimestampVerify, txTimeout, blockTxCapacity, blockSize, blockInterval, txParameterSize)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -577,6 +582,51 @@ func testChainConfigConsensusExtDelete(client *sdk.ChainClient, keys []string, u
 	signAndSendRequest(client, payload, usernames...)
 }
 
+func testChainConfigGasEnable(client *sdk.ChainClient) {
+	fmt.Println("====================== 启用/停用Gas计费 ======================")
+	chainConfig := testGetChainConfig(client)
+	if chainConfig.AccountConfig == nil {
+		fmt.Println("unsupport gas")
+		return
+	}
+
+	isGasEnabled := chainConfig.AccountConfig.EnableGas
+	fmt.Printf("is gas enable: %+v\n", isGasEnabled)
+	payload, err := client.CreateChainConfigEnableOrDisableGasPayload()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	signAndSendRequest(client, payload, examples.UserNameOrg1Admin1, examples.UserNameOrg2Admin1,
+		examples.UserNameOrg3Admin1, examples.UserNameOrg4Admin1)
+	chainConfig = testGetChainConfig(client)
+	isGasEnabled2 := chainConfig.AccountConfig.EnableGas
+	fmt.Printf("is gas enable: %+v\n", isGasEnabled2)
+
+	if isGasEnabled != !isGasEnabled2 {
+		log.Fatalf("gas enable failed")
+	}
+}
+
+func testChainConfigAlterAddrType(client *sdk.ChainClient) {
+	fmt.Println("====================== 修改地址类型 ======================")
+	chainConfig := testGetChainConfig(client)
+	addrType := chainConfig.Vm.AddrType
+	fmt.Printf("current address type is: %s\n", addrType.String())
+
+	newAddrType := strconv.FormatInt(int64((addrType+1)%2), 10)
+
+	payload, err := client.CreateChainConfigAlterAddrTypePayload(newAddrType)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	signAndSendRequest(client, payload, examples.UserNameOrg1Admin1, examples.UserNameOrg2Admin1,
+		examples.UserNameOrg3Admin1, examples.UserNameOrg4Admin1)
+
+	chainConfig = testGetChainConfig(client)
+	addrType = chainConfig.Vm.AddrType
+	fmt.Printf("after alter address type is: %s\n", addrType.String())
+}
+
 func signAndSendRequest(client *sdk.ChainClient, payload *common.Payload, usernames ...string) {
 	// 各组织Admin权限用户签名
 	//endorsers, err := examples.GetEndorsers(payload, usernames...)
@@ -597,5 +647,5 @@ func signAndSendRequest(client *sdk.ChainClient, payload *common.Payload, userna
 		log.Fatalln(err)
 	}
 
-	fmt.Printf("ChainConfigUpdate resp: %+v\n", resp)
+	//fmt.Printf("ChainConfigUpdate resp: %+v\n", resp)
 }

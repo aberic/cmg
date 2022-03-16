@@ -57,8 +57,8 @@ func (cc *ChainClient) createContractManagePayload(contractName, method string) 
 			Value: []byte(contractName),
 		},
 	}
-	return cc.createPayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CONTRACT_MANAGE.String(),
-		method, kvs, defaultSeq), nil
+	return cc.CreatePayload("", common.TxType_INVOKE_CONTRACT, syscontract.SystemContract_CONTRACT_MANAGE.String(),
+		method, kvs, defaultSeq, nil), nil
 }
 
 func (cc *ChainClient) createContractManageWithByteCodePayload(contractName, method, version,
@@ -99,8 +99,8 @@ func (cc *ChainClient) createContractManageWithByteCodePayload(contractName, met
 		return nil, fmt.Errorf("use reserved word")
 	}
 
-	payload := cc.createPayload("", common.TxType_INVOKE_CONTRACT,
-		syscontract.SystemContract_CONTRACT_MANAGE.String(), method, kvs, defaultSeq)
+	payload := cc.CreatePayload("", common.TxType_INVOKE_CONTRACT,
+		syscontract.SystemContract_CONTRACT_MANAGE.String(), method, kvs, defaultSeq, nil)
 
 	payload.Parameters = append(payload.Parameters, &common.KeyValuePair{
 		Key:   syscontract.InitContract_CONTRACT_NAME.String(),
@@ -153,11 +153,16 @@ func (cc *ChainClient) SendContractManageRequest(payload *common.Payload, endors
 
 func (cc *ChainClient) InvokeContract(contractName, method, txId string, kvs []*common.KeyValuePair, timeout int64,
 	withSyncResult bool) (*common.TxResponse, error) {
+	return cc.InvokeContractWithLimit(contractName, method, txId, kvs, timeout, withSyncResult, nil)
+}
+
+func (cc *ChainClient) InvokeContractWithLimit(contractName, method, txId string, kvs []*common.KeyValuePair,
+	timeout int64, withSyncResult bool, limit *common.Limit) (*common.TxResponse, error) {
 
 	cc.logger.Debugf("[SDK] begin to INVOKE contract, [contractName:%s]/[method:%s]/[txId:%s]/[params:%+v]",
 		contractName, method, txId, kvs)
 
-	payload := cc.createPayload(txId, common.TxType_INVOKE_CONTRACT, contractName, method, kvs, defaultSeq)
+	payload := cc.CreatePayload(txId, common.TxType_INVOKE_CONTRACT, contractName, method, kvs, defaultSeq, limit)
 
 	return cc.sendContractRequest(payload, nil, timeout, withSyncResult)
 }
@@ -168,7 +173,7 @@ func (cc *ChainClient) QueryContract(contractName, method string, kvs []*common.
 	cc.logger.Debugf("[SDK] begin to QUERY contract, [contractName:%s]/[method:%s]/[params:%+v]",
 		contractName, method, kvs)
 
-	payload := cc.createPayload("", common.TxType_QUERY_CONTRACT, contractName, method, kvs, defaultSeq)
+	payload := cc.CreatePayload("", common.TxType_QUERY_CONTRACT, contractName, method, kvs, defaultSeq, nil)
 
 	resp, err := cc.proposalRequestWithTimeout(payload, nil, timeout)
 	if err != nil {
@@ -178,8 +183,8 @@ func (cc *ChainClient) QueryContract(contractName, method string, kvs []*common.
 	return resp, nil
 }
 
-func (cc *ChainClient) GetTxRequest(contractName, method, txId string,
-	kvs []*common.KeyValuePair) (*common.TxRequest, error) {
+func (cc *ChainClient) GetTxRequest(contractName, method, txId string, kvs []*common.KeyValuePair) (
+	*common.TxRequest, error) {
 	if txId == "" {
 		txId = utils.GetRandTxId()
 	}
@@ -187,9 +192,9 @@ func (cc *ChainClient) GetTxRequest(contractName, method, txId string,
 	cc.logger.Debugf("[SDK] begin to create TxRequest, [contractName:%s]/[method:%s]/[txId:%s]/[params:%+v]",
 		contractName, method, txId, kvs)
 
-	payload := cc.createPayload(txId, common.TxType_INVOKE_CONTRACT, contractName, method, kvs, defaultSeq)
+	payload := cc.CreatePayload(txId, common.TxType_INVOKE_CONTRACT, contractName, method, kvs, defaultSeq, nil)
 
-	req, err := cc.generateTxRequest(payload, nil)
+	req, err := cc.GenerateTxRequest(payload, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -209,17 +214,17 @@ func (cc *ChainClient) SendTxRequest(txRequest *common.TxRequest, timeout int64,
 		if !withSyncResult {
 			resp.TxId = txRequest.Payload.TxId
 		} else {
-			contractResult, err := cc.getSyncResult(txRequest.Payload.TxId)
+			result, err := cc.GetSyncResult(txRequest.Payload.TxId)
 			if err != nil {
 				return nil, fmt.Errorf("get sync result failed, %s", err.Error())
 			}
 
-			if contractResult.Code != utils.SUCCESS {
+			if result.ContractResult.Code != utils.SUCCESS {
 				resp.Code = common.TxStatusCode_CONTRACT_FAIL
-				resp.Message = contractResult.Message
+				resp.Message = result.ContractResult.Message
 			}
 
-			resp.ContractResult = contractResult
+			resp.ContractResult = result.ContractResult
 		}
 	}
 
